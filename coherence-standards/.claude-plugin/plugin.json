@@ -1,0 +1,15 @@
+{
+  "name": "coherence-standards",
+  "description": "Extract engineering standards from a repository's own artifacts, review them with a human in ~40 decisions rather than 200, and compile the confirmed rules into agent-consumable form.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Growth Beaker"
+  },
+  "keywords": [
+    "standards",
+    "coherence",
+    "agents",
+    "code-review",
+    "governance"
+  ]
+}

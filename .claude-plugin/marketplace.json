@@ -1,0 +1,13 @@
+{
+  "name": "growth-beaker",
+  "owner": {
+    "name": "Growth Beaker"
+  },
+  "plugins": [
+    {
+      "name": "coherence-standards",
+      "source": "./coherence-standards",
+      "description": "Mine a repo's own artifacts for the engineering standards it already follows, surface the decisions it has never made, and compile the confirmed rules into AGENTS.md."
+    }
+  ]
+}
