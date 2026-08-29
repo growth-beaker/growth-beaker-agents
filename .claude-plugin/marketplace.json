@@ -1,5 +1,6 @@
 {
   "name": "growth-beaker",
+  "description": "Agent tooling from Growth Beaker: plugins for extracting, reviewing, and compiling a repository's engineering standards.",
   "owner": {
     "name": "Growth Beaker"
   },
