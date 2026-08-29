@@ -518,7 +518,7 @@ stale_after: 2027-02-28
 
 ## Appendix: counts and next passes
 
-~240 standards across 23 domains. Deliberately over-complete — pruning is the next pass, and cutting is cheaper than discovering a gap at the gate.
+312 standards across 23 domains. Deliberately over-complete — pruning is the next pass, and cutting is cheaper than discovering a gap at the gate.
 
 **Planned passes:**
 1. **Prototype-relaxation flags** — mark the subset waived inside the sandbox (most of §9–§11, §18–§21), defining the graduation delta a chosen exploration must close
