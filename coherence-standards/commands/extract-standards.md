@@ -109,6 +109,8 @@ Create `.standards/_inventory/` and populate it with raw facts. Adapt to the sta
 
 Use `Bash` for all of this. Prefer `git log`, `ls`, `grep`/`rg`, and direct file reads. Do not install anything.
 
+**Every pasted excerpt carries the range it came from.** Items 3, 4, 5, and 7 paste real code — migrations, endpoint exemplars, the most-imported components, style exemplars — and a pasted excerpt with no `path#L88-L104` header has thrown away the only thing that makes it re-checkable later. A drafter reading it can then cite a filename at best, which is where rail evidence stops being verifiable. Head every excerpt with its range (`grep -n` and `sed -n 'm,np'` both give you the numbers for free), and record the commit the inventory was taken at (`git rev-parse --short HEAD`) once at the top of each file. Ranges are 1-indexed and inclusive, per `${CLAUDE_PLUGIN_ROOT}/toolkit/TEMPLATE.md`.
+
 ### Import-graph facts (`graph.md`)
 
 Reading files tells you what a module says; it does not tell you what the module *graph* does. Cycles, chokepoints, and unreferenced modules are invisible to a drafter reading exemplars, and they stay invisible no matter how many files it reads — an extraction without this step reliably ships zero rails about any of them. Feeds §6 (structure), §8 (architecture), §18 (test coverage).
@@ -163,12 +165,13 @@ For each taxonomy domain below (or only the one matching $ARGUMENTS), dispatch a
 | `ai-features.md` | §22 | only if the app embeds LLM features |
 | `meta-rules.md` | §23 | docs, git blame on oldest modules — expect mostly `[gap]` |
 
-Each subagent writes `.standards/<domain>.md` following `${CLAUDE_PLUGIN_ROOT}/toolkit/TEMPLATE.md` exactly: OKF frontmatter, then rail ID, one imperative line, a DO/DON'T example pair drawn from real repo code where possible, evidence paths, and the tag. Skip taxonomy items that don't apply to this stack — note them in one line at the bottom of the file under "Not applicable".
+Each subagent writes `.standards/<domain>.md` following `${CLAUDE_PLUGIN_ROOT}/toolkit/TEMPLATE.md` exactly: OKF frontmatter, then rail ID, one imperative line, a DO/DON'T example pair drawn from real repo code where possible, evidence ranges (`path#L12-L48`, per TEMPLATE.md's "Evidence anchors"), and the tag. Skip taxonomy items that don't apply to this stack — note them in one line at the bottom of the file under "Not applicable".
 
 Give every subagent `.standards/PROFILE.yml`, `_inventory/external.md`, and `${CLAUDE_PLUGIN_ROOT}/toolkit/SCANNER-COVERAGE.md` alongside its primary inventory, and tell it explicitly:
 
 - Any taxonomy item marked `` `[scanner: DELETE|THIN|THRESHOLD]` `` requires a coverage check against `_inventory/configs.md` BEFORE a rail is written. Covered here → record it under "Covered by tooling" with the config path. Not covered here → it stays a normal rail or a `[gap]`; the marker alone never justifies a deletion.
 
+- **Cite a line range on every file-backed `Evidence:` entry, and open the file to get it.** An inventory excerpt tells you a range existed when the inventory was taken; only the file tells you it is still there. `/compile-standards` hashes each range into `.standards/_claims/` so a later run can tell whether that code moved or changed — a range copied from an excerpt without opening the file poisons that signal, because the hash it produces is a valid fingerprint of the wrong lines and will report `current` forever. Cite the smallest span that supports the rail: the function, the policy block, the config key. If you cannot locate a range you are confident in, cite the file with no range and say so on the `Evidence:` line — an unanchored rail is a known weakness, a wrong anchor is a lie the tooling will repeat.
 - Before scoring anything `[gap]`, check whether `external.md` already answers it. A standard visible in a probe is `[external]`, not a gap.
 - Before scoring anything `[gap]`, check whether the profile stages it. Prefer `stage:ga` over a gap the product is not ready to answer.
 - Prune only what the profile makes impossible, and always with the `[n/a — profile: …]` citation. Never prune on your own judgment about what "probably doesn't matter here".

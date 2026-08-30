@@ -24,6 +24,21 @@ Read `REVIEW.md`. If absent, stop and point at `/extract-standards`.
 
 Classify every `**Answer:** ` slot as answered or open, then report the shape **as interactions, not as rails**: how many theme questions, prune groups, breakout rulings, proposals to skim, and individual questions remain. "213 open items" is a discouraging and misleading number when 8 questions resolve 65 of them. If everything is answered, say so and point at `/compile-standards`.
 
+### Check whether the evidence still holds
+
+A ruling made against code that has since been rewritten is worse than a blank slot: it looks decided, it compiles into `AGENTS.md`, and nothing downstream ever revisits it. Extraction may have run days or months ago. Before asking anything, establish how much the repo has moved underneath the packet.
+
+Which check is available depends on whether a compile has ever run:
+
+- **A prior `.standards/_claims/` exists** (this is a re-review). Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/anchors.py verify .standards/_claims/*.json` and use the per-rail statuses directly. `current` and `moved` are fine — `moved` means the code is unchanged and only the line numbers drifted. `changed`, `lost`, and `missing` are the ones that matter.
+- **No `_claims/` yet** (the usual first pass — compile is what emits it). There are no baseline hashes to compare against, so do the coarse version instead: take the commit recorded at the top of the `_inventory/` files, and `git diff --name-only <that commit>..HEAD` against the set of paths cited on `Evidence:` lines. This is file-level, not span-level — it over-reports, since an unrelated edit elsewhere in a cited file trips it. Say that when you report it rather than presenting a soft signal as a hard one.
+
+**Report the count; do not turn it into questions.** This command exists to keep the review under ~40 interactions, and a staleness sweep that adds thirty is a worse outcome than the staleness. One line in the preflight report — *"9 rails across `data.md` and `api.md` cite code that has changed since extraction (file-level check; may over-report)"* — plus the affected domains named, and then move on.
+
+The response to a stale rail is **re-extraction of that domain, not a ruling**. Offer `/extract-standards <domain>` for the affected files and let the human choose; a reviewer cannot repair a rail whose evidence rotted, because the rail may now describe something the repo stopped doing and the correct new text is unknown. If they decline, or if extraction is not worth it right now, continue the review — but flag each affected rail as it comes up (see "Asking" below) so the ruling is at least made knowingly.
+
+If the check itself cannot run — no commit recorded in the inventory, `anchors.py` unavailable, not a git repo — say so in one line and continue. An unrun check reported honestly costs nothing; a skipped check reported as clean is how a stale rail reaches `AGENTS.md` looking freshly confirmed.
+
 ## Phase order
 
 Announce each phase with its interaction count. Offer an exit after every phase — a tired reviewer produces worse rulings than a blank slot, and a blank slot is recoverable.
@@ -44,6 +59,7 @@ Announce each phase with its interaction count. Offer an exit after every phase 
 - **Recommended-first only where the document argued for one.** The packet was written not to lead the answer; asking it aloud must not either. A `**Proposed:** ` line does count as the document arguing — put it first and say it is the proposal.
 - `header` is the rail or theme id (`T3`, `D4.6b`) so the human can find it in the file.
 - **Carry the evidence into the question**: the `Found:` line, exception paths, measured counts. A ruling made without the evidence is worse than a blank slot.
+- **Say when the evidence may be stale.** If preflight flagged this rail, add one line — *"heads up: `src/api/accounts.py` has changed since this was extracted, so the `Found:` line below may no longer be accurate"* — and offer "Skip — re-extract this first" as an option alongside the real answers. Do not paraphrase or soften the `Found:` line to account for the drift; you do not know what replaced it, and a quietly-adjusted finding is a fabrication. Present it as extracted, marked stale.
 - For a theme, **name what it resolves** — "this settles 14 rails including D6.1, D9.11, D19.5a". The reviewer needs to feel the leverage to answer confidently.
 - Add an explicit **"Skip for now"** whenever the honest answer may be "I need to check" — anything touching compliance, licensing, cost, or another person's decision.
 
@@ -93,4 +109,4 @@ Make the override options **name the alternative**, not the rail. "Override D2.1
 
 ## Ending
 
-Report: interactions completed this session, rails resolved (including cascades), what remains by phase, and whether `/compile-standards` can run. It can run once the `stage:now` gaps are answered; deferred gaps and unconfirmed external items do not block it.
+Report: interactions completed this session, rails resolved (including cascades), what remains by phase, any rails ruled on despite flagged-stale evidence, and whether `/compile-standards` can run. It can run once the `stage:now` gaps are answered; deferred gaps and unconfirmed external items do not block it.

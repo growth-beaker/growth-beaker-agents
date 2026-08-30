@@ -46,7 +46,8 @@ If `PROFILE.yml` is absent, treat every rail as `stage:now` and say so in the su
 
 This pass writes into the repo proper (`AGENTS.md`, path-scoped `CLAUDE.md` stubs), so it is the more dangerous of the two commands. Before writing:
 
-- **Archive prior compiled artifacts** to `.standards/_runs/<YYYY-MM-DD-HHMM>-compile/` — `INDEX.md`, `_deferred.md`, `rails.json`, `_hooks-proposed.md`, and copies of the `AGENTS.md` / `CLAUDE.md` regions you are about to touch. Move or copy, never truncate in place.
+- **Archive prior compiled artifacts** to `.standards/_runs/<YYYY-MM-DD-HHMM>-compile/` — `INDEX.md`, `_deferred.md`, `rails.json`, `_hooks-proposed.md`, `_claims/`, and copies of the `AGENTS.md` / `CLAUDE.md` regions you are about to touch. Move or copy, never truncate in place. The archived `_claims/` is what makes the next run able to say *which* rails went stale between two compiles rather than only that some did.
+- **Verify the prior run's anchors before writing new ones.** If `.standards/_claims/` exists, re-resolve every anchor in it against the working tree first and report the counts by status. A rail that comes back `changed` or `lost` was reviewed against code that no longer exists, and compiling it into `AGENTS.md` ships a rule the repo may have already abandoned. Do not block on this — report it, list the affected rails, and offer `/review-standards` — but never let a re-compile launder a stale rail into a fresh-looking artifact.
 - **Never shorten a `verified:` history.** Appending a new event is the only legal edit; if a domain file's `verified` list would lose an entry, stop — something is wrong with the merge.
 - **Never overwrite `exemptions.yaml` entries that carry a real owner or expiry.** Merge new candidates in; leave confirmed ones untouched. An exemption a human signed is a decision, not a derived artifact.
 - **`AGENTS.md` and `CLAUDE.md` are merge-only.** Write inside clearly delimited markers (e.g. `<!-- standards:begin -->` … `<!-- standards:end -->`) so a re-compile replaces only its own region and hand-written content outside the markers survives untouched. If the markers are absent on an existing file, insert them around your addition rather than rewriting the file.
@@ -104,10 +105,97 @@ Unanswered `[external]` items do **not** block the compile: the standard exists,
 5. **`.standards/_backlog.md`** — every remediation and enablement item split out above, each carrying the rail ID it serves, so the work is traceable back to the rule that motivated it. Group by rail and mark which items are prerequisites for a rail being enforceable at all (a rail whose enablement is unbuilt is aspirational, and the summary should say so). This file is never linked from `AGENTS.md`.
 6. **`.standards/_deferred.md`** — every `stage:ga` and `stage:scale` rail with its stage and the profile answer that deferred it, plus every `[n/a — profile: …]` prune. This keeps deferral auditable and gives the next stage transition a ready worklist, **without putting any of it in the agent read path**. Nothing links to this file from `AGENTS.md`.
 7. **Hook suggestions** — write `.standards/_hooks-proposed.md` listing PreToolUse/PostToolUse hook candidates for machine-enforceable rails (package allowlist, migration naming, glossary new-term detection, contract lint), with the settings snippet for each. Propose only; do not install hooks.
+8. **`.standards/_claims/<domain>.json`** — one sidecar per domain file, pinning every rail's evidence to the exact code it rests on. See "Evidence anchors" below.
+
+## Evidence anchors — pin every rail to the code it rests on
+
+A compiled rail set is a set of assertions about this repo, and six months later nobody can tell
+which of them are still true. `stale_after` is a wall-clock guess; a `verified` event signs off a
+whole domain file, so one moved function invalidates nothing legibly and re-reviewing everything
+is the only honest response. Nobody does that, so the rail set quietly decays into folklore.
+
+The sidecars fix that by recording, per rail, a hash of the code its `Evidence:` ranges point at.
+Then "which rails no longer describe this repo?" is a computation instead of a re-read. This is
+also the precondition for checking compliance at all: a checker that holds a diff against a rail
+whose `[observed]` evidence rotted away months ago is enforcing a rule the repo already abandoned.
+
+### Emitting
+
+For every rail carrying at least one file-backed `Evidence:` range, resolve each anchor against
+the working tree and write:
+
+```json
+{
+  "schemaVersion": 1,
+  "domain": "data",
+  "sourceFile": ".standards/data.md",
+  "sourceVersion": "sha256:9f2c…",
+  "generated": { "by": "coherence-standards/0.1.0", "model": "<model-id>",
+                 "taxonomy_version": "<from PROFILE.yml>", "at": "<ISO 8601>" },
+  "commit": "a1b2c3d",
+  "rails": [
+    {
+      "id": "D3.14",
+      "statement": "Every tenant-scoped query includes tenant_id",
+      "tag": "observed",
+      "stage": "now",
+      "anchors": [
+        {
+          "resource": "src/models/scoped.py#L31-L44",
+          "algo": "repo-lines-v1",
+          "lines": 14,
+          "range":  "sha256:7500d011…",
+          "first":  "sha256:8d821f47…",
+          "last":   "sha256:5a771dc2…",
+          "before": "sha256:88bab312…",
+          "after":  "sha256:47e87f46…"
+        }
+      ]
+    }
+  ]
+}
+```
+
+- `sourceVersion` hashes the domain file itself, so a later reader can tell *"the code moved under
+  these claims"* from *"somebody edited the rails and the sidecar is behind."* Two different
+  problems with two different fixes; conflating them is how a sidecar becomes untrusted.
+- `commit` is the `git rev-parse --short HEAD` the anchors were resolved against — the answer to
+  "changed since when?".
+- Hash construction, normalization, and the five statuses are specified once in
+  `${CLAUDE_PLUGIN_ROOT}/toolkit/TEMPLATE.md` under "Evidence anchors". Follow it exactly; the
+  format is only worth anything if two runs of two different models produce identical hashes for
+  identical code.
+- **Compute hashes with a tool, never by inspection.** `${CLAUDE_PLUGIN_ROOT}/scripts/anchors.py`
+  (stdlib only, like `graph.py`) takes `path#Lm-Ln` anchors and emits the block above:
+  `python3 anchors.py emit src/models/scoped.py#L31-L44` . A hash an agent typed from memory is
+  not a hash — it will verify `lost` on the first real check and discredit the whole sidecar.
+
+### Rules
+
+- **A rail with no file-backed evidence gets no anchors, and that is not a defect.** A `[gap]`
+  rests on an absence, and an `[external]` rail's source of truth is outside the repo — neither
+  has anything to pin. Emit them with `"anchors": []` so the rail is still enumerable, and never
+  invent a range to make a rail look better-supported than it is.
+- **An `[observed]` rail with no anchors is a defect.** It claims the repo does something and
+  offers nothing to check that against. Report every one in the summary; do not silently accept it.
+- **Sidecars are derived — regenerate, never hand-patch.** If a re-compile would change a hash,
+  the code changed, and the right response is to re-resolve the anchor and re-review the rail if it
+  came back `changed`. Editing a hash to make a check pass is the same failure as suppressing a
+  lint rule, and it destroys the only signal the file carries.
+- **Never resolve an anchor against a dirty tree without saying so.** If `git status` is not clean,
+  record `"dirty": true` alongside `commit` and flag it in the summary — hashes taken over
+  uncommitted work verify `changed` for everyone else the moment they pull.
+- **A `moved` anchor is a mechanical fix, not a review event.** Renumber the `Evidence:` range in
+  the domain file and re-emit. Do not touch `verified` — the human signed off on a rail, not on a
+  line number, and burning a review event on a renumber trains people to ignore them.
+- **A `changed`, `lost`, or `missing` anchor never silently re-verifies.** Report it; the rail goes
+  back to the reviewer. This is the one place the sidecar is allowed to create work, and it is the
+  entire reason it exists.
 
 ## Consistency requirements
 
 - Every AGENTS.md rule and CLAUDE.md line cites its rail ID, so prose can be traced to a confirmed rail.
+- **Every `[observed]` and `[inferred]` rail resolves to at least one anchor at status `current` or `moved`.** A rail whose every anchor is `changed`, `lost`, or `missing` does not get compiled into `AGENTS.md` on the strength of a prior review — list it as needing re-confirmation instead. Rails with no file-backed evidence (`[gap]`, `[external]`) are exempt from this check by construction, not by exception.
 - A rail may live in exactly one tier: if a config enforces it, it appears nowhere as prose except the one "configs are law" line.
 - **Graduation is a deletion, not an addition.** When a rail moves from prose to a tool check, the prose goes in the same change that adds the check — never later. If `.standards/` only ever grows, nothing is graduating, and the files drift out of agreement with the tools that actually decide. Report any rail whose `[enforced: …]` tool now covers it fully as a graduation candidate for the next review.
 - **Never delete prose for a tool this repo does not run.** Before honouring a "Covered by tooling" entry, confirm the cited config path exists. A rail covered by a scanner that is not configured here is enforced by nothing — carry it forward as a live rail and flag the discrepancy in the summary rather than silently dropping it.
@@ -115,4 +203,4 @@ Unanswered `[external]` items do **not** block the compile: the standard exists,
 - When merging into an existing `AGENTS.md` or `CLAUDE.md` that already has frontmatter, merge keys rather than replacing the block; never clobber an existing `generated` or `verified` history.
 - A `stage:now` rail that appears in a path-scoped stub does not also belong in AGENTS.md unless it is genuinely universal. Duplication across tiers is how a 150-line index becomes a 400-line one nobody reads.
 - **Re-compile on profile change.** Record `profile_version` and `answered_at` in the frontmatter of every generated artifact. If `PROFILE.yml` is newer than the artifacts, say so and re-derive rather than patching — a stage promotion (`pre-ga` → `ga`) is exactly the moment a deferred rail must reappear, and an incremental patch will miss it.
-- Finish with a summary: rails confirmed per domain split by stage, the ten selected always-on rules and why, what the profile pruned and deferred, which proposed hooks would retire which rails from prose, and every `[external]` rail still unconfirmed. State the compiled context cost — roughly how many lines a coding agent now reads before touching a file — since keeping that number small is the point of the whole filter.
+- Finish with a summary: rails confirmed per domain split by stage, the ten selected always-on rules and why, what the profile pruned and deferred, which proposed hooks would retire which rails from prose, every `[external]` rail still unconfirmed, and the anchor tally — how many rails are anchored, how many resolved `current` / `moved` / `changed` / `lost` / `missing`, and how many `[observed]` rails carry no anchor at all. State the compiled context cost — roughly how many lines a coding agent now reads before touching a file — since keeping that number small is the point of the whole filter.
