@@ -22,6 +22,8 @@ AGENTS.md                     the ten always-on rules, a router table, and
   exemptions.yaml             where a rail knowingly does not apply
   _backlog.md                 remediation and enablement — never in agent context
   _deferred.md                rails that wait for the next stage
+  _claims/                    per-rail evidence anchors — hashes of the code each
+                              rail rests on, so staleness is computed not guessed
   _inventory/                 the raw evidence every rail was drawn from
   _runs/                      prior runs, archived not deleted
 ```
@@ -35,6 +37,8 @@ AGENTS.md                     the ten always-on rules, a router table, and
 **A profile stages the taxonomy instead of pruning it.** Eight questions — product stage, compliance regime, API consumers, who operates it — decide which rails bind *now* versus at GA. Staging preserves the finding and changes only its urgency; pruning is rare and always annotated with the answer that caused it.
 
 **The review collapses.** 350 rails do not mean 350 decisions. Themes cluster the gaps ("which static-analysis tools do we adopt?" settles seven at once), one default ruling covers the inferred rails, and deferred items are never asked about. Target: under 40 interactions. A packet that produces 200 questions does not get finished, and an unreviewed packet is worth nothing.
+
+**Evidence is a line range, not a filename.** A rail tagged `[observed]` asserts the repo does something today, and that assertion has to stay checkable after the code moves. Every file-backed rail cites `path#L12-L48`, and compile hashes the span two ways — exactly, to catch an edit, and whitespace-normalized with its surrounding context, to find the block again after a reformat. Staleness stops being a date somebody guessed and becomes a number: *41 of 352 rails cite code that changed since review.*
 
 **Configs are ground truth — but only the ones this repo runs.** A universal rule belongs in a linter, not in prose an agent reads on every task. But deleting the prose when no tool here enforces it leaves the rule enforced by nothing. `SCANNER-COVERAGE.md` carries the dispositions; the commands require a config path before honouring any of them.
 
@@ -81,6 +85,7 @@ Each domain carries an *agent extraction sources* note naming where the rails ar
 | `toolkit/TEMPLATE.md` | the rail format and the rules drafters follow |
 | `toolkit/SCANNER-COVERAGE.md` | which rails a code-health tool should own instead |
 | `scripts/graph.py`, `scripts/graph.mjs` | stdlib-only import-graph analysis (cycles, chokepoints, orphans, test pairing) |
+| `scripts/anchors.py` | stdlib-only evidence anchors — pin a rail to a line range, then detect whether that code moved or changed |
 
 The taxonomy ships **with the plugin**, not copied into each repo — repos pin `taxonomy_version` in their `PROFILE.yml` so an extraction stays legible after the taxonomy moves on.
 
